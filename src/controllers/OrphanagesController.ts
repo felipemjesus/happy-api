@@ -1,14 +1,18 @@
 import { Request, Response } from 'express';
 import { getRepository } from 'typeorm';
+
 import Orphanage from '../models/Orphanage';
+import orphanageView from '../views/orphanages';
 
 export default {
   async index(request: Request, response: Response) {
     const orphanagesRepository = getRepository(Orphanage);
 
-    const orphanages = await orphanagesRepository.find();
+    const orphanages = await orphanagesRepository.find({
+      relations: ['images']
+    });
 
-    return response.json(orphanages);
+    return response.json(orphanageView.renderMany(orphanages));
   },
 
   async show(request: Request, response: Response) {
@@ -17,11 +21,13 @@ export default {
 
       const orphanagesRepository = getRepository(Orphanage);
     
-      const orphanage = await orphanagesRepository.findOneOrFail(id)
+      const orphanage = await orphanagesRepository.findOneOrFail(id, { 
+        relations: ['images']
+      });
 
-      return response.json(orphanage);
+      return response.json(orphanageView.render(orphanage));
     } catch (err) {
-      return response.status(404).json({ message: 'Não foi possível encontrar o orfanato.' });
+      return response.status(404).json({ message: err.message });
     }
   },
 
@@ -36,6 +42,11 @@ export default {
         opening_hours, 
         open_on_weekends,
       } = request.body
+
+      const requestImages = request.files as Express.Multer.File[];
+      const images = requestImages.map(image => { 
+        return { path: image.filename };
+      });
     
       const orphanagesRepository = getRepository(Orphanage);
     
@@ -47,13 +58,14 @@ export default {
         instructions, 
         opening_hours, 
         open_on_weekends,
+        images,
       });
     
       await orphanagesRepository.save(orphanage);
     
       return response.status(201).json(orphanage);
     } catch (err) {
-      return response.status(404).json({ message: 'Não foi possível criar o orfanato.' });
+      return response.status(404).json({ message: err.message });
     }
   }
 }
